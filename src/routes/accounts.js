@@ -1,8 +1,6 @@
 import express from "express";
 import bcrypt from "bcryptjs";
-
 import db from "../config/db.js";
-
 import auth from "../middleware/auth.js";
 import { authorizeAdmin } from "../middleware/role.js";
 

@@ -17,7 +17,7 @@ router.post("/register", async (req, res) => {
     ]);
 
     if (existing.rows.length > 0) {
-      return res.status(400).json({ msg: "Email already used" });
+      return res.status(400).json({ message: "Email already used" });
     }
 
     // hash password
@@ -39,12 +39,12 @@ router.post("/register", async (req, res) => {
     );
 
     res.json({
-      msg: "Register success",
+      message: "Register success",
       user: user.rows[0],
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ msg: "Server error" });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -58,7 +58,7 @@ router.post("/login", async (req, res) => {
     ]);
 
     if (userRes.rows.length === 0) {
-      return res.status(400).json({ msg: "User not found" });
+      return res.status(400).json({ message: "User not found" });
     }
 
     const user = userRes.rows[0];
@@ -66,8 +66,13 @@ router.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!isMatch) {
-      return res.status(400).json({ msg: "Wrong password" });
+      return res.status(400).json({ message: "Wrong password" });
     }
+
+    const userStore = await db.query(
+      "UPDATE stores SET is_open = true WHERE id = $1",
+      [user.store_id],
+    );
 
     const token = jwt.sign(
       {
@@ -90,35 +95,38 @@ router.post("/login", async (req, res) => {
     res.json({
       token,
       user,
-      msg: "Login success",
+      message: "Login success",
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ msg: "Server error" });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-router.post("/logout", (req, res) => {
+router.post("/logout", auth, (req, res) => {
+  const userId = req.user.id;
+
   res.clearCookie("token");
 
   res.json({
-    msg: "Logout success",
+    message: "Logout success",
   });
 });
 
 router.get("/me", auth, async (req, res) => {
   const userId = req.user.id;
+  console.log(userId);
 
   const userRes = await db.query(
     "SELECT id, name, email, role FROM users WHERE id = $1",
     [userId],
   );
+  // console.log(userRes.rows[0].name)
 
   res.json({ user: userRes.rows[0] });
 });
 
 router.get("/store", auth, async (req, res) => {
-  
   const userId = req.user.id;
 
   try {
@@ -132,18 +140,152 @@ router.get("/store", auth, async (req, res) => {
       JOIN stores s ON u.store_id = s.id
       WHERE u.id = $1
       `,
-      [userId]
+      [userId],
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "User tidak ditemukan" });
     }
-    console.log(result.rows[0])
-
-    res.json({store : result.rows[0]});
+    // console.log(result);
+    res.json({ store: result.rows[0] });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.get("/data-store", auth, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const result = await db.query(
+      `
+      SELECT 
+        u.name AS user_name,
+        u.role,
+
+        s.id AS store_id,
+        s.name AS store_name,
+        s.address,
+        s.logo_url,
+        s.instagram,
+        s.website,
+        s.struk_header,
+        s.struk_footer,
+        s.is_open
+
+      FROM users u
+      JOIN stores s ON u.store_id = s.id
+      WHERE u.id = $1
+      `,
+      [userId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: "User tidak ditemukan",
+      });
+    }
+
+    res.json({
+      success: true,
+      store: result.rows[0],
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+});
+
+
+router.patch("/store/close", auth, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const getStoreId = await db.query(
+      "SELECT store_id FROM users WHERE id = $1",
+      [userId],
+    );
+
+    const storeId = getStoreId.rows[0].store_id;
+
+    const existingStore = await db.query("SELECT * FROM stores where id = $1", [
+      storeId,
+    ]);
+
+    if (!existingStore) {
+      return res.status(400).json({
+        message: "tidak menemukan Toko",
+      });
+    }
+    const result = await db.query(
+      "UPDATE stores SET is_open = false WHERE id = $1",
+      [storeId],
+    );
+
+    const resultReturn = res.status(200).json({
+      succes: true,
+      message: "Toko berhasil ditutup",
+    });
+
+    console.log(resultReturn);
+
+    res.status(200).json({
+      succes: true,
+      message: "Toko berhasil ditutup",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+});
+
+router.patch("/store/open", auth, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const getStoreId = await db.query(
+      "SELECT store_id FROM users WHERE id = $1",
+      [userId],
+    );
+
+    const storeId = getStoreId.rows[0].store_id;
+
+    const existingStore = await db.query("SELECT * FROM stores where id = $1", [
+      storeId,
+    ]);
+
+    if (!existingStore) {
+      return res.status(400).json({
+        message: "tidak menemukan Toko",
+      });
+    }
+    const result = await db.query(
+      "UPDATE stores SET is_open = true WHERE id = $1",
+      [storeId],
+    );
+
+    const resultReturn = res.status(200).json({
+      succes: true,
+      message: "Toko berhasil dibuka",
+    });
+
+    console.log(resultReturn);
+
+    res.status(200).json({
+      succes: true,
+      message: "Toko berhasil dibuka",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
   }
 });
 

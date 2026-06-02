@@ -5,10 +5,8 @@ CREATE TYPE table_status AS ENUM ('AVAILABLE', 'OCCUPIED');
 CREATE TYPE order_source AS ENUM ('SELF_ORDER', 'KASIR');
 CREATE TYPE order_status AS ENUM (
   'WAITING_PAYMENT',
-  'PENDING_CASH',
   'CONFIRMED',
   'PREPARING',
-  'READY',
   'COMPLETED',
   'CANCELLED'
 );
@@ -101,3 +99,4 @@ CREATE TABLE order_items (
   price_snapshot INT NOT NULL,
   notes          TEXT
 );
+

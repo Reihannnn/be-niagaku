@@ -6,9 +6,7 @@ import { authorizeAdmin } from "../middleware/role.js";
 
 const router = express.Router();
 
-
-
-// GET / READ KATEGORI 
+// GET / READ KATEGORI
 router.get("/", auth, async (req, res) => {
   try {
     const result = await pool.query(
@@ -23,7 +21,7 @@ router.get("/", auth, async (req, res) => {
       GROUP BY c.id
       ORDER BY c.sort_order ASC, c.name ASC
       `,
-      [req.user.store_id]
+      [req.user.store_id],
     );
 
     res.json({
@@ -39,7 +37,6 @@ router.get("/", auth, async (req, res) => {
     });
   }
 });
-
 
 // CREATE KATEGORI
 router.post("/", auth, authorizeAdmin, async (req, res) => {
@@ -68,7 +65,7 @@ router.post("/", auth, authorizeAdmin, async (req, res) => {
       WHERE store_id = $1
       AND LOWER(name) = LOWER($2)
       `,
-      [req.user.store_id, name.trim()]
+      [req.user.store_id, name.trim()],
     );
 
     if (existing.rows.length > 0) {
@@ -88,7 +85,7 @@ router.post("/", auth, authorizeAdmin, async (req, res) => {
       VALUES ($1, $2, $3)
       RETURNING *
       `,
-      [req.user.store_id, name.trim(), sort_order]
+      [req.user.store_id, name.trim(), sort_order],
     );
 
     res.status(201).json({
@@ -106,7 +103,6 @@ router.post("/", auth, authorizeAdmin, async (req, res) => {
   }
 });
 
-
 // UPDATE KATEGORI
 router.patch("/:id", auth, authorizeAdmin, async (req, res) => {
   try {
@@ -120,7 +116,7 @@ router.patch("/:id", auth, authorizeAdmin, async (req, res) => {
       WHERE id = $1
       AND store_id = $2
       `,
-      [id, req.user.store_id]
+      [id, req.user.store_id],
     );
 
     if (existing.rows.length === 0) {
@@ -141,7 +137,7 @@ router.patch("/:id", auth, authorizeAdmin, async (req, res) => {
       AND store_id = $4
       RETURNING *
       `,
-      [name?.trim(), sort_order, id, req.user.store_id]
+      [name?.trim(), sort_order, id, req.user.store_id],
     );
 
     res.json({
@@ -159,7 +155,6 @@ router.patch("/:id", auth, authorizeAdmin, async (req, res) => {
   }
 });
 
-
 // DELETE category
 router.delete("/:id", auth, authorizeAdmin, async (req, res) => {
   try {
@@ -172,7 +167,7 @@ router.delete("/:id", auth, authorizeAdmin, async (req, res) => {
       FROM products
       WHERE category_id = $1
       `,
-      [id]
+      [id],
     );
 
     if (products.rows.length > 0) {
@@ -189,7 +184,7 @@ router.delete("/:id", auth, authorizeAdmin, async (req, res) => {
       AND store_id = $2
       RETURNING id
       `,
-      [id, req.user.store_id]
+      [id, req.user.store_id],
     );
 
     if (result.rows.length === 0) {

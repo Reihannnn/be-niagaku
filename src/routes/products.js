@@ -3,6 +3,7 @@ import express from "express";
 import db from "../config/db.js";
 import auth from "../middleware/auth.js";
 import upload from "../../utils/upload.js";
+import { authorizeAdmin } from "../middleware/role.js";
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ router.get("/", auth, async (req, res) => {
       FROM products p
       JOIN categories c ON p.category_id = c.id
       WHERE p.store_id = $1
+      AND p.is_deleted = false
     `;
 
     const values = [req.user.store_id];
@@ -45,7 +47,7 @@ router.get("/", auth, async (req, res) => {
 //
 // ✅ CREATE PRODUCT
 //
-router.post("/", auth, upload.single("image"), async (req, res) => {
+router.post("/", auth, authorizeAdmin,upload.single("image"), async (req, res) => {
   try {
     const { name, price, category_id } = req.body;
 
@@ -76,7 +78,7 @@ router.post("/", auth, upload.single("image"), async (req, res) => {
 //
 // ✅ UPDATE PRODUCT
 //
-router.patch("/:id", auth,upload.single("image"), async (req, res) => {
+router.patch("/:id",auth, authorizeAdmin,  auth,upload.single("image"), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, price, category_id, status } = req.body;
@@ -120,7 +122,8 @@ router.delete("/:id", auth, async (req, res) => {
 
     await db.query(
       `
-      DELETE FROM products
+      UPDATE products
+      SET is_deleted = true
       WHERE id = $1 AND store_id = $2
       `,
       [id, req.user.store_id],
