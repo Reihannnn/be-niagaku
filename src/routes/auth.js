@@ -3,8 +3,12 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import db from "../config/db.js";
 import auth from "../middleware/auth.js";
+import dotenv from "dotenv";
+import transporter from "../helpers/index.js";
 
+dotenv.config();
 const router = express.Router();
+const BASE_URL = process.env.FRONTEND_URL || process.env.BASE_URL_FRONTEND;
 
 // ✅ REGISTER
 router.post("/register", async (req, res) => {
@@ -63,6 +67,10 @@ router.post("/login", async (req, res) => {
 
     const user = userRes.rows[0];
 
+    if (user.is_active === false) {
+      return res.status(403).json({ message: "Akun sudah dinonaktifkan" });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!isMatch) {
@@ -85,12 +93,19 @@ router.post("/login", async (req, res) => {
     );
 
     // ✅ SET COOKIE
-    res.cookie("token", token, {
+
+    const cookieOpts = {
       httpOnly: true,
-      secure: false, // true kalau https
-      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : "lax",
+      path: "/",
       maxAge: 24 * 60 * 60 * 1000,
-    });
+    };
+    if (process.env.NODE_ENV === "production") {
+      cookieOpts.domain = ".manatok.my.id";
+    }
+
+    res.cookie("token", token, cookieOpts);
 
     res.json({
       token,
@@ -106,10 +121,138 @@ router.post("/login", async (req, res) => {
 router.post("/logout", auth, (req, res) => {
   const userId = req.user.id;
 
-  res.clearCookie("token");
+  const cookieOpts = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  };
+  if (process.env.NODE_ENV === "production") {
+    cookieOpts.domain = ".manatok.my.id";
+  }
+
+  res.clearCookie("token", cookieOpts);
 
   res.json({
     message: "Logout success",
+  });
+});
+
+// FORGOT Password
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const email = req.body.email;
+    const userRes = await db.query(`SELECT * FROM users WHERE email = $1`, [
+      email,
+    ]);
+
+    if (userRes.rows.length === 0) {
+      return res.status(401).json({
+        status: false,
+        message: "Email tidak ditemukan",
+        data: {},
+      });
+    }
+
+    const user = userRes.rows[0];
+    // console.log(userRes.rows[0].id)
+
+    const token = jwt.sign(
+      {
+        idUser: user.id,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" },
+    );
+    const expired = new Date(Date.now() + 15 * 60 * 1000);
+
+    await db.query(
+      "UPDATE users SET reset_token = $1, reset_token_expired = $2 WHERE id = $3",
+      [token, expired, user.id],
+    );
+
+    const resetLink = `${BASE_URL}/reset-password/${token}`;
+    const info = await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: email,
+      subject: "Reset Password",
+      html: `
+      <h2>Reset Password</h2>
+      <p>Klik tombol berikut:</p>
+      <a href="${resetLink}">
+      Reset Password
+      </a>
+      <p>Link berlaku 15 menit.</p>
+      `,
+    });
+
+    console.log(info);
+    return res.status(200).json({
+      status: true,
+      message: "Link reset berhasil dikirim",
+      resetLink: resetLink,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: false,
+      message: "Server Error",
+    });
+  }
+});
+
+router.post("/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+
+  const userRes = await db.query(
+    `
+    SELECT *
+    FROM users
+    WHERE reset_token = $1
+    `,
+    [token],
+  );
+
+  if (userRes.rows.length === 0) {
+    return res.status(400).json({
+      status: false,
+      message: "Token tidak valid",
+    });
+  }
+
+  const user = userRes.rows[0];
+
+  if (new Date(user.reset_token_expired) < new Date()) {
+    return res.status(400).json({
+      status: false,
+      message: "Token sudah expired",
+    });
+  }
+
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(400).json({
+      status: false,
+      message: "JWT tidak valid",
+    });
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  await db.query(
+    `
+    UPDATE users
+    SET password_hash = $1,
+    reset_token = NULL,
+          reset_token_expired = NULL
+          WHERE id = $2
+          `,
+    [hashedPassword, user.id],
+  );
+
+  return res.status(200).json({
+    status: true,
+    message: "Password berhasil diubah",
   });
 });
 
@@ -124,169 +267,6 @@ router.get("/me", auth, async (req, res) => {
   // console.log(userRes.rows[0].name)
 
   res.json({ user: userRes.rows[0] });
-});
-
-router.get("/store", auth, async (req, res) => {
-  const userId = req.user.id;
-
-  try {
-    const result = await db.query(
-      `
-      SELECT 
-        u.name AS user_name,
-        u.role,
-        s.name AS store_name
-      FROM users u
-      JOIN stores s ON u.store_id = s.id
-      WHERE u.id = $1
-      `,
-      [userId],
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "User tidak ditemukan" });
-    }
-    // console.log(result);
-    res.json({ store: result.rows[0] });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-router.get("/data-store", auth, async (req, res) => {
-  const userId = req.user.id;
-
-  try {
-    const result = await db.query(
-      `
-      SELECT 
-        u.name AS user_name,
-        u.role,
-
-        s.id AS store_id,
-        s.name AS store_name,
-        s.address,
-        s.logo_url,
-        s.instagram,
-        s.website,
-        s.struk_header,
-        s.struk_footer,
-        s.is_open
-
-      FROM users u
-      JOIN stores s ON u.store_id = s.id
-      WHERE u.id = $1
-      `,
-      [userId],
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        message: "User tidak ditemukan",
-      });
-    }
-
-    res.json({
-      success: true,
-      store: result.rows[0],
-    });
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      message: "Server error",
-    });
-  }
-});
-
-
-router.patch("/store/close", auth, async (req, res) => {
-  const userId = req.user.id;
-
-  try {
-    const getStoreId = await db.query(
-      "SELECT store_id FROM users WHERE id = $1",
-      [userId],
-    );
-
-    const storeId = getStoreId.rows[0].store_id;
-
-    const existingStore = await db.query("SELECT * FROM stores where id = $1", [
-      storeId,
-    ]);
-
-    if (!existingStore) {
-      return res.status(400).json({
-        message: "tidak menemukan Toko",
-      });
-    }
-    const result = await db.query(
-      "UPDATE stores SET is_open = false WHERE id = $1",
-      [storeId],
-    );
-
-    const resultReturn = res.status(200).json({
-      succes: true,
-      message: "Toko berhasil ditutup",
-    });
-
-    console.log(resultReturn);
-
-    res.status(200).json({
-      succes: true,
-      message: "Toko berhasil ditutup",
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
-  }
-});
-
-router.patch("/store/open", auth, async (req, res) => {
-  const userId = req.user.id;
-
-  try {
-    const getStoreId = await db.query(
-      "SELECT store_id FROM users WHERE id = $1",
-      [userId],
-    );
-
-    const storeId = getStoreId.rows[0].store_id;
-
-    const existingStore = await db.query("SELECT * FROM stores where id = $1", [
-      storeId,
-    ]);
-
-    if (!existingStore) {
-      return res.status(400).json({
-        message: "tidak menemukan Toko",
-      });
-    }
-    const result = await db.query(
-      "UPDATE stores SET is_open = true WHERE id = $1",
-      [storeId],
-    );
-
-    const resultReturn = res.status(200).json({
-      succes: true,
-      message: "Toko berhasil dibuka",
-    });
-
-    console.log(resultReturn);
-
-    res.status(200).json({
-      succes: true,
-      message: "Toko berhasil dibuka",
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
-  }
 });
 
 export default router;

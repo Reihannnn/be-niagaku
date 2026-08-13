@@ -9,7 +9,7 @@ dotenv.config();
 
 const router = express.Router();
 
-const baseUrl = process.env.BASE_URL;
+const baseUrl = process.env.API_URL || process.env.BASE_URL;
 
 //  GET ALL PRODUCTS + FILTER CATEGORY
 router.get("/", auth, async (req, res) => {
@@ -47,47 +47,59 @@ router.get("/", auth, async (req, res) => {
 //
 // ✅ CREATE PRODUCT
 //
-router.post("/", auth, authorizeAdmin,upload.single("image"), async (req, res) => {
-  try {
-    const { name, price, category_id } = req.body;
+router.post(
+  "/",
+  auth,
+  authorizeAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { name, price, category_id } = req.body;
 
-    const image_url = req.file
-      ? `${baseUrl}/uploads/${req.file.filename}`
-      : null;
+      const image_url = req.file
+        ? `${baseUrl}/uploads/${req.file.filename}`
+        : null;
 
-    const result = await db.query(
-      `
+      const result = await db.query(
+        `
       INSERT INTO products (store_id, category_id, name, price, image_url)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
       `,
-      [req.user.store_id, category_id, name, price, image_url],
-    );
+        [req.user.store_id, category_id, name, price, image_url],
+      );
 
-    res.json({
-      success: true,
-      message: "Produk berhasil ditambahkan",
-      data: result.rows[0],
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-});
+      res.json({
+        success: true,
+        message: "Produk berhasil ditambahkan",
+        data: result.rows[0],
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  },
+);
 
 //
 // ✅ UPDATE PRODUCT
 //
-router.patch("/:id",auth, authorizeAdmin,  auth,upload.single("image"), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, price, category_id, status } = req.body;
-    const image_url = req.file
-      ? `${baseUrl}/uploads/${req.file.filename}`
-      : null;
+router.patch(
+  "/:id",
+  auth,
+  authorizeAdmin,
+  auth,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, price, category_id, status } = req.body;
+      const image_url = req.file
+        ? `${baseUrl}/uploads/${req.file.filename}`
+        : null;
 
-    const result = await db.query(
-      `
+      const result = await db.query(
+        `
       UPDATE products
       SET
         name = COALESCE($1, name),
@@ -99,19 +111,20 @@ router.patch("/:id",auth, authorizeAdmin,  auth,upload.single("image"), async (r
       WHERE id = $6 AND store_id = $7
       RETURNING *
       `,
-      [name, price, category_id, image_url, status, id, req.user.store_id],
-    );
+        [name, price, category_id, image_url, status, id, req.user.store_id],
+      );
 
-    res.json({
-      success: true,
-      message: "Produk berhasil diupdate",
-      data: result.rows[0],
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-});
+      res.json({
+        success: true,
+        message: "Produk berhasil diupdate",
+        data: result.rows[0],
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
 
 //
 // ✅ DELETE PRODUCT

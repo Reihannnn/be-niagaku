@@ -1,14 +1,15 @@
 import express from "express";
+import dotenv from "dotenv";
 
 import pool from "../config/db.js";
 
+dotenv.config();
 const router = express.Router();
 
 // GET DATA SELF ORDER
 router.get("/:token", async (req, res) => {
   try {
     const { token } = req.params;
-
     // GET TABLE
     const tableResult = await pool.query(
       `
@@ -44,6 +45,14 @@ router.get("/:token", async (req, res) => {
 
     const table = tableResult.rows[0];
 
+    // Keep legacy uploaded asset URLs usable after moving the API online.
+    if (table.logo_url?.startsWith("http://localhost:5000")) {
+      table.logo_url = table.logo_url.replace(
+        "http://localhost:5000",
+        process.env.API_URL || "http://localhost:5000",
+      );
+    }
+
     // GET PRODUCTS
     const productsResult = await pool.query(
       `
@@ -53,8 +62,7 @@ router.get("/:token", async (req, res) => {
           FROM products p
           JOIN categories c
             ON c.id = p.category_id
-          WHERE p.store_id = $1
-          AND p.status = 'AVAILABLE'
+          WHERE p.store_id = $1          
           AND p.is_deleted = false
           ORDER BY c.sort_order ASC
           `,

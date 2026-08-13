@@ -1,15 +1,18 @@
 import express from "express";
+import dotenv from "dotenv";
 import pool from "../config/db.js";
 import auth from "../middleware/auth.js";
 import { authorizeAdmin } from "../middleware/role.js";
 
 const router = express.Router();
+dotenv.config();
 
 function buildOrderUrl(qr_token) {
-  const base = process.env.SELF_ORDER_BASE_URL ?? "http://localhost:3000";
-  return `${base}/order/${qr_token}`;
-}
+  const base = process.env.FRONTEND_URL || "http://localhost:3000";
 
+  const normalizedBase = base.replace(/\/+$/, "");
+  return `${normalizedBase}/order/${qr_token}`;
+}
 
 // GET / READ MEJA
 router.get("/", auth, async (req, res) => {
@@ -28,7 +31,7 @@ router.get("/", auth, async (req, res) => {
       GROUP BY t.id
       ORDER BY t.label ASC
       `,
-      [req.user.store_id]
+      [req.user.store_id],
     );
 
     const data = result.rows.map((t) => ({
@@ -49,7 +52,6 @@ router.get("/", auth, async (req, res) => {
     });
   }
 });
-
 
 // CREATE MEJA
 router.post("/", auth, authorizeAdmin, async (req, res) => {
@@ -78,7 +80,7 @@ router.post("/", auth, authorizeAdmin, async (req, res) => {
       WHERE store_id = $1
       AND LOWER(label) = LOWER($2)
       `,
-      [req.user.store_id, label.trim()]
+      [req.user.store_id, label.trim()],
     );
 
     if (existing.rows.length > 0) {
@@ -94,7 +96,7 @@ router.post("/", auth, authorizeAdmin, async (req, res) => {
       VALUES ($1, $2)
       RETURNING *
       `,
-      [req.user.store_id, label.trim()]
+      [req.user.store_id, label.trim()],
     );
 
     const table = {
@@ -117,7 +119,6 @@ router.post("/", auth, authorizeAdmin, async (req, res) => {
   }
 });
 
-
 // UPDATE MEJA
 router.patch("/:id", auth, authorizeAdmin, async (req, res) => {
   try {
@@ -132,7 +133,7 @@ router.patch("/:id", auth, authorizeAdmin, async (req, res) => {
       WHERE id = $1
       AND store_id = $2
       `,
-      [id, req.user.store_id]
+      [id, req.user.store_id],
     );
 
     if (existing.rows.length === 0) {
@@ -163,7 +164,7 @@ router.patch("/:id", auth, authorizeAdmin, async (req, res) => {
         AND LOWER(label) = LOWER($2)
         AND id != $3
         `,
-        [req.user.store_id, label.trim(), id]
+        [req.user.store_id, label.trim(), id],
       );
 
       if (dup.rows.length > 0) {
@@ -184,7 +185,7 @@ router.patch("/:id", auth, authorizeAdmin, async (req, res) => {
       AND store_id = $4
       RETURNING *
       `,
-      [label?.trim(), status, id, req.user.store_id]
+      [label?.trim(), status, id, req.user.store_id],
     );
 
     const table = {
@@ -207,7 +208,6 @@ router.patch("/:id", auth, authorizeAdmin, async (req, res) => {
   }
 });
 
-
 // REGENERATE QR TOKEN
 router.post("/:id/regenerate-qr", auth, authorizeAdmin, async (req, res) => {
   try {
@@ -221,7 +221,7 @@ router.post("/:id/regenerate-qr", auth, authorizeAdmin, async (req, res) => {
       AND store_id = $2
       RETURNING *
       `,
-      [id, req.user.store_id]
+      [id, req.user.store_id],
     );
 
     if (result.rows.length === 0) {
@@ -251,7 +251,6 @@ router.post("/:id/regenerate-qr", auth, authorizeAdmin, async (req, res) => {
   }
 });
 
-
 // DELETE MEJA
 router.delete("/:id", auth, authorizeAdmin, async (req, res) => {
   try {
@@ -265,7 +264,7 @@ router.delete("/:id", auth, authorizeAdmin, async (req, res) => {
       WHERE table_id = $1
       AND status NOT IN ('COMPLETED', 'CANCELLED')
       `,
-      [id]
+      [id],
     );
 
     if (activeOrders.rows.length > 0) {
@@ -282,7 +281,7 @@ router.delete("/:id", auth, authorizeAdmin, async (req, res) => {
       AND store_id = $2
       RETURNING id
       `,
-      [id, req.user.store_id]
+      [id, req.user.store_id],
     );
 
     if (result.rows.length === 0) {

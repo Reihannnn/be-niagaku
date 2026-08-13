@@ -38,7 +38,6 @@ router.get("/", auth, async (req, res) => {
        FROM products p
        JOIN categories c ON c.id = p.category_id
        WHERE p.store_id = $1
-         AND p.status = 'AVAILABLE'
          AND p.is_deleted = false
        ORDER BY c.sort_order ASC, p.name ASC`,
       [store_id],
@@ -305,11 +304,11 @@ router.patch("/:id/status", auth, async (req, res) => {
     const order = orderResult.rows[0];
 
     const updateResult = await client.query(
-      `UPDATE orders
-       SET status = $1,
-           completed_at = CASE WHEN $1 = 'COMPLETED' THEN NOW() ELSE completed_at END
-       WHERE id = $2
-       RETURNING *`,
+       `UPDATE orders
+        SET status = $1::order_status,
+            completed_at = CASE WHEN $1::order_status = 'COMPLETED'::order_status THEN NOW() ELSE completed_at END
+        WHERE id = $2
+        RETURNING *`,
       [status, id],
     );
 

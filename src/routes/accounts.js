@@ -11,7 +11,7 @@ router.get("/", auth, authorizeAdmin, async (req, res) => {
   try {
     const result = await db.query(
       `
-        SELECT id, name, email, role, created_at
+        SELECT id, name, email, role, created_at, is_active
         FROM users
         WHERE store_id = $1
         AND role = 'KASIR'
@@ -96,6 +96,7 @@ router.patch("/:id", auth, authorizeAdmin, async (req, res) => {
           WHERE id = $1
           AND role = 'KASIR'
           AND store_id = $2
+          AND is_active = true
           `,
       [req.params.id, req.user.store_id],
     );
@@ -184,21 +185,30 @@ router.patch("/:id", auth, authorizeAdmin, async (req, res) => {
   }
 });
 
-// ✅ DELETE CASHIER
+// ✅ DEACTIVATE CASHIER
 router.delete("/:id", auth, authorizeAdmin, async (req, res) => {
   try {
-    await db.query(
+    const result = await db.query(
       `
-        DELETE FROM users
+        UPDATE users
+        SET is_active = false
         WHERE id = $1
         AND role = 'KASIR'
         AND store_id = $2
+        AND is_active = true
+        RETURNING id
         `,
       [req.params.id, req.user.store_id],
     );
 
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        msg: "Cashier not found or already inactive",
+      });
+    }
+
     res.json({
-      msg: "Cashier deleted",
+      msg: "Cashier deactivated",
     });
   } catch (err) {
     console.error(err);

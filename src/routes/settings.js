@@ -1,11 +1,13 @@
 import express from "express";
 import multer from "multer";
 import path from "path";
+import dotenv from "dotenv";
 import db from "../config/db.js";
 import auth from "../middleware/auth.js";
 import { authorizeAdmin } from "../middleware/role.js";
 
 const router = express.Router();
+dotenv.config();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -18,7 +20,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-const baseUrl = process.env.BASE_URL || "http://localhost:5000";
+const baseUrl = process.env.API_URL || process.env.BASE_URL || "http://localhost:5000";
 
 router.get("/", auth, async (req, res) => {
   try {

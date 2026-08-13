@@ -7,9 +7,13 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/white-box.test.js test/route-validation.test.js",
+    "test:products:local": "node --test test/products.integration.test.js",
+    "test:integration": "node --test test/auth.integration.test.js test/accounts.integration.test.js test/categories.integration.test.js test/products.integration.test.js test/tables.integration.test.js test/orders.integration.test.js",
+    "start": "node src/index.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -18,9 +22,12 @@
     "jsonwebtoken": "^9.0.3",
     "midtrans-client": "^1.4.3",
     "multer": "^2.1.1",
+    "nodemailer": "^8.0.10",
     "pdfkit": "^0.18.0",
     "pg": "^8.20.0",
-    "socket.io": "^4.8.3"
+    "puppeteer": "^25.2.1",
+    "socket.io": "^4.8.3",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
